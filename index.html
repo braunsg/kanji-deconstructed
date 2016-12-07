@@ -1,0 +1,725 @@
+<!--
+
+#kanji-deconstructed
+Kanji Deconstructed
+Created By: Steven Braun
+December 7, 2016
+
+See http://www.stevengbraun.com/dev/kanji-deconstructed/index.html for project
+See http://www.github.com/braunsg/kanji-deconstructed for source code
+
+-->
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<head>	
+	<meta property="og:title" content="Kanji Deconstructed" />
+	<meta property="og:type" content="website" />
+	<meta property="og:description" content="A data visualization about Japanese kanji and radicals'" />
+	<meta property="og:image" content="http://www.stevengbraun.com/dev/kanji-deconstructed/inc/screenshot.jpg" />
+	<title>Kanji Deconstructed</title>
+	<style>
+	
+	@import 'https://fonts.googleapis.com/css?family=Catamaran:100,600|Noto+Sans:700';
+
+	body {
+		width: 100%;
+		height: 100%;
+		margin: 0px;
+		padding: 0px;
+	}
+	
+	#body_wrapper {
+		width: 100%;
+		margin: 0px;
+		padding: 0px;
+		display: flex;
+		flex-direction: column;
+	}
+	
+	#header {
+		flex: 1 0 auto;
+		margin: 0px;
+		padding: 20px;
+		text-align: left;
+		font-family: "Noto Sans",sans-serif;
+		font-size: 2.4em;
+		font-weight: 700;
+		line-height: 100%;
+		border-bottom: 1px dashed #CECECE;
+		cursor: default;
+		box-sizing: border-box;
+			-webkit-box-sizing: border-box;
+			-moz-box-sizing: border-box;
+	}
+	
+	#content_wrapper {
+		flex: 1 0;
+		padding: 10px;
+		box-sizing: border-box;
+			-webkit-box-sizing: border-box;
+			-moz-box-sizing: border-box;
+	}
+	
+	#vis_wrapper {
+		flex: 0 1 auto;
+		width: 100%;
+		height: 1000px;
+		border-bottom: 1px dashed #CECECE;
+		box-sizing: border-box;
+			-webkit-box-sizing: border-box;
+			-moz-box-sizing: border-box;
+
+	}
+		
+	#loading {
+		width: 100%;
+		height: 100%;
+		text-align: center;
+	}
+	
+	.content_container {
+		position: relative;
+		width: 100%;
+		margin: 0px;
+		padding: 5px;
+		box-sizing: border-box;
+			-webkit-box-sizing: border-box;
+			-moz-box-sizing: border-box;
+	}
+	
+	.image_container {
+		display: flex;
+		flex-direction: row;
+	}
+	
+	.image {
+		flex: 1 0 50%;
+		text-align: center;
+	}
+	
+	.image img {
+		width: 600px;
+	}
+		
+	.section_header {
+		font-family: "Catamaran",sans-serif;
+		text-transform: lowercase;
+		font-variant: small-caps;
+		font-size: 1.8em;	
+		font-weight: bold;
+		margin: 15px 0px 5px 0px;
+		padding: 0px;
+		border-bottom: 1px solid #333333;
+		cursor: default;
+		box-sizing: border-box;
+			-webkit-box-sizing: border-box;
+			-moz-box-sizing: border-box;		
+	
+	}
+	
+	.text {
+		font-family: "Catamaran",sans-serif;
+		font-size: 1.2em;	
+		margin: 0px;
+		padding: 25px;
+		cursor: default;
+		text-align: justify;
+		background-color: rgba(255,255,255,0.8);
+		box-sizing: border-box;
+			-moz-box-sizing: border-box;
+			-webkit-box-sizing: border-box;
+	}
+	
+	.grade_label,
+	.partcount_label {
+		font-family: "Catamaran",sans-serif;
+		font-size: 1.2em;	
+	
+	}
+
+	.grade_label {
+		text-anchor: end;
+		dominant-baseline: central;
+		cursor: pointer;
+	}
+	
+	.grade_label:hover {
+		font-weight: bold;
+	}
+	
+	.radicalpart_label {
+		font-family: "Catamaran",sans-serif;
+		font-size: 0.8em;	
+		dominant-baseline: central;
+		text-anchor: middle;
+		cursor: default;
+	}
+
+	.radicalaxis_label {
+		font-family: "Catamaran",sans-serif;
+		font-size: 0.6em;	
+		dominant-baseline: central;
+		text-anchor: start;
+		cursor: default;
+	}
+	
+	.radicalpart_g {
+		pointer-events: none;
+	}
+	
+	.axislabel {
+		font-family: "Catamaran",sans-serif;
+		font-size: 1.2em;	
+		dominant-baseline: central;
+		text-anchor: middle;
+		cursor: default;
+		fill: steelblue;
+	}
+		
+	a:link, a:visited {
+		color: steelblue;
+		text-decoration: none;
+	}
+	
+	a:hover {
+		text-decoration: underline;
+	}
+	
+
+	</style>
+	<script src="lib/d3.v4.js"></script>
+	<script src="lib/jquery-3.1.0.min.js"></script>
+	<script>
+
+
+$(document).ready(function() {
+
+
+	//////////////////////////////////////////////////////////////////////////////////////
+	// DEFINE FUNCTIONS
+	//////////////////////////////////////////////////////////////////////////////////////
+	
+    // https://github.com/wbkd/d3-extended
+    d3.selection.prototype.moveToFront = function() {  
+      return this.each(function(){
+        this.parentNode.appendChild(this);
+      });
+    };
+    d3.selection.prototype.moveToBack = function() {  
+        return this.each(function() { 
+            var firstChild = this.parentNode.firstChild; 
+            if (firstChild) { 
+                this.parentNode.insertBefore(this, firstChild); 
+            } 
+        });
+    };
+	
+	function getTranslation(transform) {
+	  // Create a dummy g for calculation purposes only. This will never
+	  // be appended to the DOM and will be discarded once this function 
+	  // returns.
+	  var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  
+	  // Set the transform attribute to the provided string value.
+	  g.setAttributeNS(null, "transform", transform);
+  
+	  // consolidate the SVGTransformList containing all transformations
+	  // to a single SVGTransform of type SVG_TRANSFORM_MATRIX and get
+	  // its SVGMatrix. 
+	  var matrix = g.transform.baseVal.consolidate().matrix;
+  
+	  // As per definition values e and f are the ones for the translation.
+	  return [matrix.e, matrix.f];
+	}	
+
+
+
+	//////////////////////////////////////////////////////////////////////////////////////
+	// LOAD DATA
+	//////////////////////////////////////////////////////////////////////////////////////
+
+	d3.json("inc/kanji_deconstructed.json", function(result) {
+		$("#loading").remove();
+		
+		// Define function for drawing endpoints
+		function drawEndpoints(grade) {
+			svg.selectAll(".endpoint").remove();
+
+			for(var point in endpoints[grade]) {
+				var x = getTranslation(d3.select("#" + point).attr("transform"))[0];
+				var y = getTranslation(d3.select("#" + point).attr("transform"))[1];
+
+				svg.append("circle")
+					.datum({pointID: point})
+					.attr("class","endpoint")
+					.attr("cx", x)
+					.attr("cy", y)
+					.attr("r", endpointScale(endpoints[grade][point]))
+					.attr("fill", "#666666")
+					.on("mouseover", function(d) {
+						var radical_id = d.pointID.substring(d.pointID.indexOf("radical_"));
+						console.log(radical_id);
+						var rx = d3.select(this).attr("cx");
+						var ry = d3.select(this).attr("cy");
+						var radicalpart = svg.append("g")
+							.attr("class","radicalpart_g")
+							.attr("transform","translate(" + rx + "," + ry + ")");
+
+						radicalpart.append("rect")
+							.attr("x", -10)
+							.attr("y" , -10)
+							.attr("width",20)
+							.attr("height",20)
+							.attr("stroke","#CECECE")
+							.attr("fill","#FFFFFF");
+			
+						radicalpart.append("text")
+							.attr("class","radicalpart_label")
+							.text(radicals[radical_id]["glyph"]);
+		
+						svg.selectAll("path").filter(function() {
+							return d3.select(this).style("visibility") === "visible";
+						}).attr("opacity",0.02);
+			
+						svg.selectAll("path").filter(function(d) {
+							return d.radicals.indexOf(radical_id) >= 0;
+						}).attr("opacity",1);
+			
+					}).on("mouseout", function() {
+						svg.selectAll("path").filter(function() {
+							return d3.select(this).style("visibility") === "visible";
+						}).attr("opacity",1);
+				
+						svg.selectAll(".radicalpart_g").remove();
+					});
+			}	
+		}
+		
+		// Define SVG dimensions
+		var margin = {top: 120, left: 120, right: 150, bottom: 20};
+		var width = $(document).innerWidth();
+		var height = 1000;
+
+		// Generate SVG canvas
+		var svg = d3.select("#vis_wrapper").append("svg")
+			.attr("width",width)
+			.attr("height",height);
+		
+		var kanji = result["kanji"];
+		var radicals = result["radicals"];
+		var radical_count = result["radical_count"];
+
+		// Define scales
+		var xMax = 12; // Maximum number of parts
+		var xScale = d3.scaleLinear()
+			.domain([0,xMax])
+			.range([margin.left, width-margin.right]);
+
+		var yScale = d3.scaleLinear()
+			.domain([0, radical_count - 1])
+			.range([margin.top, height - margin.bottom]);
+
+		var gradeScale = d3.scalePoint()
+			.domain(['1','2','3','4','5','6','secondary'])
+			.range([margin.top, height - margin.bottom]);
+	
+		var colorGroups = d3.scaleOrdinal()
+			.domain([0,1,2,3,4,5,6])
+			.range(['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ddcc49','#a65628']);
+
+		var endpointScale = d3.scalePow()
+			.domain([1,200])
+			.range([2,10])
+			.clamp(true);
+	
+		// Draw grade groups
+		var colorIndex = 0;
+		var gradeSelectedOn = false;
+		for(var jouyou_grade in kanji) {
+	
+			var grade_g = svg.append("g")
+				.attr("id","grade_" + jouyou_grade)
+				.attr("transform", "translate(" + xScale(0) + "," + gradeScale(jouyou_grade) + ")");
+	
+			grade_g.append("circle")
+				.datum({grade: jouyou_grade})
+				.attr("cx",0)
+				.attr("cy",0)
+				.attr("r",5)
+				.attr("fill", colorGroups(colorIndex++))
+				.style("cursor","pointer")
+				.on("click", function(d) {
+			
+					d3.event.stopPropagation();
+					gradeSelectedOn = true;
+			
+					d3.selectAll("path")
+						.attr("opacity",0)
+						.attr("visibility","hidden");
+				
+					d3.selectAll(".g_" + d.grade)
+						.attr("opacity",1)
+						.attr("visibility","visible")
+						.attr("stroke-width",2)
+						.moveToFront();
+
+					d3.selectAll(".endpoint")
+						.transition()
+						.duration(250)
+						.attr("opacity",0)
+						.remove();
+				
+					endpoint_grade = d.grade;
+					drawEndpoints(endpoint_grade);
+
+				});
+
+			var gradeText = grade_g.append("text")
+				.datum({grade: jouyou_grade})
+				.attr("class","grade_label")
+				.attr("dx", "-1em");
+
+			if(jouyou_grade === "secondary") {
+				gradeText.text("Secondary");
+			} else {
+				gradeText.text("Grade " + jouyou_grade);
+			}
+			
+			gradeText.on("click", function(d) {
+				d3.event.stopPropagation();
+				gradeSelectedOn = true;
+		
+				d3.selectAll("path")
+					.attr("opacity",0)
+					.attr("visibility","hidden");
+			
+				d3.selectAll(".g_" + d.grade)
+					.attr("opacity",1)
+					.attr("visibility","visible")
+					.attr("stroke-width",2)
+					.moveToFront();
+
+				d3.selectAll(".endpoint")
+					.transition()
+					.duration(250)
+					.attr("opacity",0)
+					.remove();
+			
+				endpoint_grade = d.grade;
+				drawEndpoints(endpoint_grade);
+			
+			});
+		}
+	
+		// Draw individual radical part circles
+		for(var i = 1; i <= xMax; i++) {
+
+			var radical_index = 0;
+
+			svg.append("text")
+				.attr("class","partcount_label")
+				.attr("text-anchor","middle")
+				.attr("dy", "-1em")
+				.attr("dominant-baseline","central")
+				.attr("x", xScale(i))
+				.attr("y", yScale(0))
+				.text(i);
+	
+			for(var radical_id in radicals) {
+				var radical_g = svg.append("g")
+					.attr("id","i" + i + "_" + radical_id)
+					.attr("transform", "translate(" + xScale(i) + "," + yScale(radical_index) + ")");
+			
+				radical_g.append("circle")
+					.datum({radical_glyph: radicals[radical_id]['glyph'], radical_stroke_count: radicals[radical_id]['stroke_count']}) 
+					.attr("cx",0)
+					.attr("cy",0)
+					.attr("r",2)
+					.attr("fill","#CECECE")
+					.on("mouseover", function(d) { 
+						var rx = getTranslation(d3.select(this.parentNode).attr("transform"))[0];
+						var ry = getTranslation(d3.select(this.parentNode).attr("transform"))[1];
+						var radicalpart = svg.append("g")
+							.attr("class","radicalpart_g")
+							.attr("transform","translate(" + rx + "," + ry + ")");
+				
+						radicalpart.append("rect")
+							.attr("x", -10)
+							.attr("y" , -10)
+							.attr("width",20)
+							.attr("height",20)
+							.attr("stroke","#CECECE")
+							.attr("fill","#FFFFFF");
+					
+						radicalpart.append("text")
+							.attr("class","radicalpart_label")
+							.text(d.radical_glyph);
+
+					}).on("mouseout", function() {
+						svg.selectAll(".radicalpart_g").remove();
+					});
+	
+				radical_index++;
+		
+			
+			}
+
+		}
+
+
+		// Draw paths for individual kanji
+		var line = d3.line()
+			.curve(d3.curveStep)
+			.x(function(d) { return d.x; })
+			.y(function(d) { return d.y; });
+
+		var textDetail = svg.append("text")
+			.attr("x",50)
+			.attr("y", 50)
+			.style("font-size","1.5em")
+			.attr("opacity",0)
+			.attr("dominant-baseline","central")
+			.text("");
+	
+		var endpoints = {"total": {}};
+		var colorIndex = 0;
+
+		for(var jouyou_grade in kanji) {
+			endpoints[jouyou_grade] = {};
+			var grade_data = kanji[jouyou_grade];
+			var group_color = colorGroups(colorIndex++);
+			for(var kanji_id in grade_data) {
+		
+				pathdata = [];
+				if(grade_data[kanji_id]["radicals"].length > 1) {
+					var endX, endY;
+					
+					// Get class node
+					var x = getTranslation(d3.select("#grade_" + jouyou_grade).attr("transform"))[0];
+					var y = getTranslation(d3.select("#grade_" + jouyou_grade).attr("transform"))[1];
+					pathdata.push({x: x, y: y});
+			
+					for(var i = 1; i <= grade_data[kanji_id]["radicals"].length; i++) {
+						var radical_id = grade_data[kanji_id]["radicals"][i-1]; // 0-indexed
+						var x = getTranslation(d3.select("#i" + (i) + "_" + radical_id).attr("transform"))[0];
+						var y = getTranslation(d3.select("#i" + (i) + "_" + radical_id).attr("transform"))[1];
+						pathdata.push({x: x, y: y});
+						if(i == grade_data[kanji_id]["radicals"].length) {
+							endX = x;
+							endY = y;
+						}
+						
+						// Add data to endpoints
+						if(!(("i" + i + "_" + radical_id) in endpoints[jouyou_grade])) {
+							endpoints[jouyou_grade]["i" + i + "_" + radical_id] = 0;
+						}
+						endpoints[jouyou_grade]["i" + i + "_" + radical_id]++;
+				
+						if(!(("i" + i + "_" + radical_id) in endpoints["total"])) {
+							endpoints["total"]["i" + i + "_" + radical_id] = 0;
+						}
+						endpoints["total"]["i" + i + "_" + radical_id]++;
+					
+					}
+
+					// Draw the path for the kanji
+					svg.append("path")
+						.datum({path: pathdata, radicals: grade_data[kanji_id]["radicals"], color: group_color, glyph: grade_data[kanji_id]["glyph"], endpoint: {x: endX, y: endY}})
+						.attr("class",kanji_id)
+						.classed("g_" + jouyou_grade,true)
+						.attr("d", function(d) { return line(d.path); })
+						.attr("stroke",group_color)
+						.attr("stroke-width",1)
+						.attr("fill","none")
+						.attr("pointer-events","visibleStroke")
+						.on("click", function() {
+							d3.event.stopPropagation();
+						})
+						.on("mouseover", function(d) {
+
+							d3.selectAll("path")
+								.attr("stroke","#EEEEEE");
+						
+							d3.select(this)
+								.attr("stroke", function(d) { return d.color; })
+								.attr("stroke-width",3)
+								.moveToFront();
+						
+							textDetail
+								.attr("x", d.endpoint.x + 15)
+								.attr("y", d.endpoint.y)
+								.attr("opacity",1)
+								.text(d.glyph);
+					
+							textDetail.moveToFront();
+					
+							textDetail
+								.transition()
+								.duration(250)
+								.attr("opacity",1);
+						
+							svg.selectAll(".endpoint")
+								.moveToFront();
+						
+							// Display kanji components
+							d.radicals.forEach(function(r,k) {
+
+								var rx = getTranslation(d3.select("#i" + (k+1) + "_" + r).attr("transform"))[0];
+								var ry = getTranslation(d3.select("#i" + (k+1) + "_" + r).attr("transform"))[1];
+								var radicalpart = svg.append("g")
+									.attr("class","radicalpart_g")
+									.attr("transform","translate(" + rx + "," + ry + ")");
+						
+								radicalpart.append("rect")
+									.attr("x", -10)
+									.attr("y" , -10)
+									.attr("width",20)
+									.attr("height",20)
+									.attr("stroke","#CECECE")
+									.attr("fill","#FFFFFF");
+							
+								radicalpart.append("text")
+									.attr("class","radicalpart_label")
+									.text(radicals[r]["glyph"]);
+							});
+						
+						}).on("mouseout", function() {
+							svg.selectAll(".radicalpart_g")
+								.remove();
+						
+							if(gradeSelectedOn) {
+								d3.selectAll("path")
+									.attr("stroke", function(d) { 
+										return d.color;
+									}).attr("stroke-width",2);		
+							} else {
+								d3.selectAll("path")
+									.attr("stroke", function(d) { 
+										return d.color;
+									}).attr("stroke-width",1);							
+							}						
+					
+							textDetail.transition()
+								.duration(250)
+								.attr("opacity",0);	
+						});
+				}			
+
+			}
+		}
+
+		// Draw right axis
+		var rightAxis = svg.append("g")
+			.attr("id","radical_axis")
+			.attr("transform", "translate(" + (width - margin.right + 20) + ",0)");
+
+		var strokeCounts = {};
+		var radicalIndex = 0;
+		for(var radical_id in radicals) {
+			var strokeCount = radicals[radical_id]["stroke_count"];
+			if(!(strokeCount in strokeCounts)) {
+				strokeCounts[strokeCount] = radicalIndex;
+			}
+			radicalIndex++;
+		}
+
+		var radicalIndex = 0;
+		for(var strokeCount in strokeCounts) {
+			var ry = yScale(strokeCounts[strokeCount]);
+			if(strokeCount === "1") {
+				rightAxis.append("text")
+					.attr("class","radicalaxis_label")
+					.attr("x", 0)
+					.attr("y", ry)
+					.text(strokeCount + " stroke");
+	
+			} else if(strokeCount !== "13") {
+				rightAxis.append("text")
+					.attr("class","radicalaxis_label")
+					.attr("x", 0)
+					.attr("y", ry)
+					.text(strokeCount + " strokes");
+	
+			}
+		}
+
+		// Draw axis labels
+		svg.append("text")
+			.attr("class","axislabel")
+			.attr("x", width/2)
+			.attr("y", margin.top - 75)
+			.text("Number of Components");
+
+		svg.append("text")
+			.attr("class","axislabel")
+			.attr("transform","rotate(90)")
+			.attr("y", -width + 50)
+			.attr("x", height/2)
+			.text("Component Complexity");
+		
+		// Draw the endpoints
+		var endpoint_grade = "total";
+		drawEndpoints(endpoint_grade);
+
+		// Move all secondary grade kanji to back for legibility
+		d3.selectAll(".g_secondary").each(function() {
+			d3.select(this).moveToBack();
+		});
+
+		// Move all circles in front of paths
+		d3.selectAll("circle").each(function() {
+			d3.select(this).moveToFront();
+		});
+
+		// Bind click event to SVG -- reset SVG
+		svg.on("click", function() {
+
+			gradeSelectedOn = false;
+			d3.selectAll("path")
+				.attr("opacity",1)
+				.attr("stroke-width",1)
+				.attr("visibility","visible")
+				.moveToFront();
+
+			svg.selectAll(".endpoint")
+				.remove();
+	
+			endpoint_grade = "total";	
+			drawEndpoints(endpoint_grade);
+
+		});
+
+
+	}); // end d3.json()
+
+});	// end $(document).ready()
+</script>
+</head>
+<body>
+<div id="body_wrapper">
+	<div id="header">Kanji<br><span style="color:steelblue;">Deconstructed</span></div>
+	<div id="vis_wrapper">
+		<div id="loading"><img src="inc/loading.gif"></div>
+	</div>
+	<div id="content_wrapper">
+		<div class="content_container">
+			<div class="text">Learning Japanese characters, or <i>kanji</i>, is a daunting experience for any non-native speaker of the language. Japanese kanji can sometimes be very complex structures, and there are different ways in which that complexity may be measured. One measure is simply stroke count, with more complex characters featuring higher numbers of strokes. Another related measure, though less commonly considered, is the number of parts that constitute a single kanji character. These subparts, known as <i>radicals</i>, lend both structural and semantic meaning and value to a character. In this project, kanji characters are mapped against one another by virtue of their structural components. Doing so reveals how certain common radicals and parts dominate the structure of different kanji characters.</div>
+			<div class="section_header">Reading the Visualization</div>
+			<div class="text">
+			In this visualization, each line represents a single character in the total set of <i><a target="_blank" href="https://en.wikipedia.org/wiki/J%C5%8Dy%C5%8D_kanji">jouyou kanji</a></i> (常用漢字). Lines are colored according to the grade in which they are introduced in the Japanese school system, from Grade 1 to secondary school. When you <b>hover over a single line</b>, all of that kanji character's composite parts (including its radical) are displayed. Each step in the line along the horizontal axis represents an additional part (component) of the character; vertical position, meanwhile, corresponds to the stroke complexity of the respective kanji component (radicals with only one stroke are closer to the top of the visualization, while those with more strokes progress downward). The represented kanji character for each line is displayed at the end of the line. <b>To see all the kanji for a given grade, click the colored circle next to that grade or its respective label.</b>
+			</div>
+			<div class="image_container">
+				<div class="image"><img src="inc/kanji_deconstructed_1.png"></div>
+				<div class="image"><img src="inc/kanji_deconstructed_2.png"></div>
+			</div>
+			<div class="text">
+			In addition to the lines representing each kanji character, the circles indicate radicals and kanji parts represented across all kanji displayed. These gray circles vary in size according to the relative number of kanji that contain them: larger dark gray circles indicate radicals or parts that are more commonly found in the kanji displayed. As you read the visualization, it is worth noting those kanji that extend far to the right and down the chart, as these indicate complex kanji characters with many individual subparts with many strokes.
+			</div>
+			<div class="section_header">Acknowledgments</div>
+			<div class="text">This visualization was built in <a target="_blank" href="http://www.d3js.org">D3.js</a> by <a target="_blank" href="http://www.stevengbraun.com">Steven Braun</a>. The data are taken from <a target="_blank" href="http://www.csse.monash.edu.au/~jwb/kradinf.html">Jim Breen's KRADFILE</a>, a concordance of all kanji and their composite radicals. The code for this project is freely available on <a target="_blank" href="http://www.github.com/braunsg/kanji-deconstructed">GitHub</a>.
+		</div>
+	</div>
+</div>
+</body>
+</html>
